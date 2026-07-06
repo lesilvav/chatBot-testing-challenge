@@ -1,0 +1,36 @@
+{
+  "name": "local-llm-chatbot-challenge-app",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Minimalist local LLM chatbot app (Ollama) for testing challenges",
+  "scripts": {
+    "dev:server": "tsx watch src/backend/server.ts",
+    "docs": "tsx watch src/backend/server.ts",
+    "dev:web": "vite",
+    "dev": "concurrently -n server,web -c blue,green \"npm:dev:server\" \"npm:dev:web\"",
+    "build": "tsc -p tsconfig.build.json && vite build",
+    "start": "node --import tsx src/backend/server.ts"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "swagger-ui-express": "^5.0.1"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.5",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@types/swagger-ui-express": "^4.1.8",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.7"
+  }
+}

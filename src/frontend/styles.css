@@ -1,0 +1,88 @@
+:root {
+  font-family: system-ui, -apple-system, sans-serif;
+  color-scheme: light dark;
+}
+body {
+  margin: 0;
+  background: #0f1117;
+  color: #e7e9ee;
+}
+.app {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 6rem;
+}
+h1 {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+.messages {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.msg {
+  padding: 0.6rem 0.85rem;
+  border-radius: 12px;
+  max-width: 85%;
+}
+.msg p {
+  margin: 0.2rem 0 0;
+  white-space: pre-wrap;
+}
+.msg-label {
+  font-size: 0.7rem;
+  opacity: 0.6;
+  text-transform: uppercase;
+}
+.msg-user {
+  align-self: flex-end;
+  background: #2b5cff;
+}
+.msg-bot {
+  align-self: flex-start;
+  background: #1c1f29;
+}
+.loader {
+  opacity: 0.7;
+  font-style: italic;
+  margin-top: 0.75rem;
+}
+.error {
+  margin-top: 0.75rem;
+  color: #ff7676;
+}
+.composer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: #0f1117;
+  border-top: 1px solid #20232e;
+}
+.composer input {
+  flex: 1;
+  padding: 0.7rem;
+  border-radius: 10px;
+  border: 1px solid #2a2e3a;
+  background: #161922;
+  color: inherit;
+}
+.composer button {
+  padding: 0.7rem 1.2rem;
+  border-radius: 10px;
+  border: none;
+  background: #2b5cff;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+}
+.composer button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
