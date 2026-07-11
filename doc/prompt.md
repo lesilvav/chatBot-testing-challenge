@@ -33,7 +33,7 @@
 - Save the result in the ./doc/chatBot_TestCases.md file
 
 ## Create Non-Deterministic User Stories, Test Cases, and Fixtures
-- The purpose of this step is to cover the "non-deterministic tests for quality, relevance, consistency, and hallucination risk" area named in the README's Suggested testing scope, since the app's replies come from a local LLM (Ollama) and cannot be asserted with exact/binary checks.
+- The purpose of this step is to cover the "non-deterministic tests for relevance, consistency, and hallucination risk" area named in the README's Suggested testing scope, since the app's replies come from a local LLM (Ollama) and cannot be asserted with exact/binary checks.
 - Treat this as fully independent from the deterministic User Stories and Test Cases (different files, different ID namespace, different pass/fail semantics). Do not merge into `chatBot_UserStories.md` / `chatBot_TestCases.md`.
 - Judgment method: embedding cosine similarity computed in-process via `@huggingface/transformers` (Transformers.js), using the `onnx-community/all-MiniLM-L6-v2-ONNX` embedding model (384-dim, `feature-extraction` pipeline). Do not use a second judge LLM.
 - Relevance: for each prompt in a golden set, compute cosine similarity between the bot's reply and a pre-approved reference answer. Pass threshold: similarity >= 0.8.

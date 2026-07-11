@@ -3,6 +3,11 @@ dist/
 .env
 .env.local
 
+# test artifacts
+test-results/
+playwright-report/
+blob-report/
+
 # editor / os
 .DS_Store
 *.log
