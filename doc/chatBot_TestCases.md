@@ -2,11 +2,42 @@
 
 | LLM used | Date | Summary |
 | ---- | ---- | ---- |
-| Cascade (Claude) | 2026-07-10 | Test Cases derived exclusively from `chatBot_UserStories.md` (US-01–US-12), expressed in Gherkin format, covering UI and API verification for the happy path, loading/error states, health check, Swagger docs, and mobile viewport. Includes traceability to source user stories via tags. |
+| Cascade (Claude) | 2026-07-10 | Test Cases derived exclusively from `chatBot_UserStories.md` (US-01–US-12), expressed in Gherkin format, covering UI and API verification for the happy path, loading/error states, health check, and mobile viewport. Includes traceability to source user stories via tags. |
 
 ## Traceability legend
 
 Each scenario carries a `@TC-xx` tag (unique Test Case ID) and a `@US-xx` tag referencing the user story it was derived from in `./chatBot_UserStories.md`, plus `@priority-*` and `@type-(ui|api)` tags. No scenario is introduced beyond what the acceptance criteria describe.
+
+## Summary table
+
+| ID | Scenario | Type | Priority | Source (US) |
+| ---- | ---- | ---- | ---- | ---- |
+| TC-01 | Send a valid message via Send button click | UI | High | US-01 |
+| TC-02 | Send a valid message via Enter key | UI | Medium | US-01 |
+| TC-03 | POST /api/chat returns a successful reply for a valid message | API | High | US-01 |
+| TC-04 | Input is cleared after a successful send | UI | Medium | US-01 |
+| TC-05 | Loading indicator appears while waiting for a reply | UI | High | US-02 |
+| TC-06 | Input and Send are disabled during loading | UI | High | US-02 |
+| TC-07 | Loading indicator is removed and controls re-enabled after response | UI | Medium | US-02 |
+| TC-08 | Send button is disabled with an empty input | UI | Medium | US-03 |
+| TC-09 | Send button is disabled with whitespace-only input | UI | Medium | US-03 |
+| TC-10 | Send button is enabled with valid non-whitespace input | UI | Medium | US-03 |
+| TC-11 | POST /api/chat rejects a message longer than 2000 characters | API | Medium | US-04 |
+| TC-12 | UI shows the server's validation error for an over-length message | UI | Medium | US-04 |
+| TC-13 | Over-length user message remains visible after the validation error | UI | Low | US-04 |
+| TC-14 | Backend maps an upstream rate-limit failure to 429 (`@mocked-backend`) | API | Medium | US-05 |
+| TC-15 | UI shows the rate-limit error message (`@mocked-backend`) | UI | Medium | US-05 |
+| TC-16 | Backend maps an unreachable Ollama service to 503 (`@mocked-backend`) | API | Medium | US-06 |
+| TC-17 | UI shows the service-unavailable error message (`@mocked-backend`) | UI | Medium | US-06 |
+| TC-18 | Backend returns 504 when the model exceeds the timeout budget (`@mocked-backend`) | API | Medium | US-07 |
+| TC-19 | UI shows the timeout error message (`@mocked-backend`) | UI | Medium | US-07 |
+| TC-20 | Backend returns 502 for an unclassified upstream failure (`@mocked-backend`) | API | Low | US-08 |
+| TC-21 | UI shows the generic fallback error message (`@mocked-backend`) | UI | Low | US-08 |
+| TC-22 | Input is re-enabled after any error response | UI | Medium | US-09 |
+| TC-23 | Send re-enables after typing valid text following an error | UI | Medium | US-09 |
+| TC-24 | GET /api/health reports backend status and configured model | API | Low | US-10 |
+| TC-28 | Chat UI has no horizontal scrolling at mobile viewport | UI | Medium | US-12 |
+| TC-29 | Composer stays fixed to the bottom at mobile viewport | UI | Low | US-12 |
 
 ## Notes on backend mocking
 
@@ -156,23 +187,6 @@ Feature: Recover the composer after any error to retry
     When I type a new non-whitespace message into the input
     Then the "Send" button becomes enabled
 
-Feature: Consult the backend API contract
-  # Source: US-11
-
-  @TC-25 @US-11 @priority-low @type-ui
-  Scenario: Swagger UI renders the API title and endpoint list
-    Given the backend is running
-    When I navigate to "http://localhost:3001/api/docs"
-    Then the page shows "Local LLM Chatbot Backend API" version "1.0.0" with OAS "3.1"
-    And a "Backend" tag lists "GET /api/health" and "POST /api/chat"
-
-  @TC-26 @US-11 @priority-low @type-ui
-  Scenario: Swagger UI shows full operation details when expanded
-    Given I am on the Swagger UI page
-    When I expand "GET /api/health"
-    And I expand "POST /api/chat"
-    Then both operations show their parameters, example request body, and all documented response codes 200, 400, 429, 502, 503, 504 with example payloads
-
 Feature: Use the chat on a mobile-sized screen
   # Source: US-12
 
@@ -262,16 +276,6 @@ Feature: Check backend/model health
     When I send a GET request to "/api/health"
     Then the response status is 200
     And the response body is { "status": "ok", "model": "<configured-model>" }
-
-Feature: Consult the backend API contract
-  # Source: US-11
-
-  @TC-27 @US-11 @priority-low @type-api
-  Scenario: GET /api/openapi.json returns the raw OpenAPI spec
-    Given the backend is running
-    When I send a GET request to "/api/openapi.json"
-    Then the response status is 200
-    And the response body is a valid OpenAPI 3.1 JSON document
 ```
 
 ## Coverage summary
@@ -288,5 +292,4 @@ Feature: Consult the backend API contract
 | US-08 | TC-20, TC-21 |
 | US-09 | TC-22, TC-23 |
 | US-10 | TC-24 |
-| US-11 | TC-25, TC-26, TC-27 |
 | US-12 | TC-28, TC-29 |

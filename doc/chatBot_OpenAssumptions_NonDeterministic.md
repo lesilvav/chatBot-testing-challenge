@@ -8,4 +8,5 @@
 - **Resolved — embedding model/library now pinned to exact versions**: `@huggingface/transformers@4.2.0` (npm, exact version, not a `^`/`~` range) and `onnx-community/all-MiniLM-L6-v2-ONNX` at revision `aff7a1d` (exact commit hash, loaded via `from_pretrained(..., { revision: 'aff7a1d' })`). Still pending: adding `@huggingface/transformers` as an actual dependency in `package.json` (not yet installed) and re-validating this pin whenever the model or library is upgraded.
 - **"Advisory/tracked" has no defined process**: results are explicitly non-blocking, but there is no defined owner, cadence, or escalation path for reviewing tracked failures. Needs stakeholder input on where these results are reported (e.g. CI artifact, dashboard, ticket).
 - **Execution cadence not decided**: whether this suite runs on every PR, nightly, or on-demand was discussed as a tradeoff (real LLM + real embedding inference cost) but never finalized.
+- **UI Automation coverage**: Few set of UI test scripts were automated since most of the UI logic was covered using unit tests.
 

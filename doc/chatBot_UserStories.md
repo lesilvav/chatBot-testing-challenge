@@ -2,7 +2,7 @@
 
 | LLM used | Date | Summary |
 | ---- | ---- | ---- |
-| Cascade (Claude) | 2026-07-10 | User Stories derived exclusively from `chatBot_SystemBlueprint.md`, covering the chat flow, loading/error states, and the backend API docs surface. Includes traceability to blueprint sections and a list of open assumptions/missing business rules for stakeholder review. |
+| Cascade (Claude) | 2026-07-10 | User Stories derived exclusively from `chatBot_SystemBlueprint.md`, covering the chat flow, loading/error states, and the backend health check. Includes traceability to blueprint sections and a list of open assumptions/missing business rules for stakeholder review. |
 
 ## Traceability legend
 
@@ -22,7 +22,6 @@ Each story's **Source** column references the section/table row of `./chatBot_Sy
 | US-08 | See a generic error for unclassified upstream failures | Low | Page/state inventory #5; Out of scope |
 | US-09 | Recover the composer after any error to retry | Medium | Page/state inventory #4, #5 |
 | US-10 | Check backend/model health | Low | Page/state inventory #6 |
-| US-11 | Consult the backend API contract | Low | Page/state inventory #6 |
 | US-12 | Use the chat on a mobile-sized screen | Medium | Page/state inventory #7 |
 
 ## User Stories
@@ -155,20 +154,6 @@ Each story's **Source** column references the section/table row of `./chatBot_Sy
 
 ---
 
-### US-11 — Consult the backend API contract
-- **As a** developer or tester integrating with the backend
-- **I want** interactive, browsable API documentation
-- **So that** I can understand request/response shapes and try calls without writing code
-
-**Acceptance criteria**
-- Given `http://localhost:3001/api/docs` is opened, then Swagger UI renders "Local LLM Chatbot Backend API" (v1.0.0, OAS 3.1) with a `Backend` tag containing `GET /api/health` and `POST /api/chat`.
-- Given an operation is expanded, then its parameters, example request body (for `POST /api/chat`), and all documented response codes with example payloads are visible.
-- Given `GET /api/openapi.json` is called, then the raw OpenAPI spec is returned as JSON.
-
-**INVEST notes**: Purely documentation-facing; testable by asserting presence of both operations and their example payloads.
-
----
-
 ### US-12 — Use the chat on a mobile-sized screen
 - **As a** mobile user
 - **I want** the chat layout to remain usable at small viewport widths
@@ -187,7 +172,6 @@ Each story's **Source** column references the section/table row of `./chatBot_Sy
 - **Conversation persistence**: history is lost on reload/navigation (in-memory state only). Confirm whether persistence (e.g. localStorage, backend-side sessions) is out of scope for this app or a future requirement.
 - **`latencyMs` visibility**: returned by the API but never rendered in the UI. Confirm whether it should be surfaced to users (e.g., "responded in Xms") or remains an internal/debug-only field.
 - **Non-live-reproduced error states** (`429`, `502`, `503`, `504`): acceptance criteria for US-05–US-08 are derived from source code and Swagger examples, not observed live behavior, since reproducing them requires deliberately degrading the shared local Ollama service. Recommend a stakeholder/QA decision on how these will be verified (e.g., mocked backend in automated tests) before marking them "done".
-- **Swagger UI exposure**: `/api/docs` and `/api/openapi.json` have no access control documented. Confirm whether this should be restricted (e.g., disabled in production) or is intentionally open for this local/dev-only app.
 - **Accessibility scope**: `role="status"` and `role="alert"` are present, but no broader accessibility audit (contrast, focus management, keyboard-only flow) is in the blueprint. Confirm if accessibility compliance is an explicit requirement for this challenge.
 - **Mobile coverage**: only the empty state was captured at the mobile viewport (US-12). Loading, success, and error states at mobile width are unverified and should be confirmed as either low-risk (same responsive CSS applies) or requiring explicit test coverage.
 - **Multi-user/session model**: the app has no authentication or session concept; each browser tab/reload is an independent, anonymous conversation. Confirm this single-user, session-less model is intentional for the scope of this app.

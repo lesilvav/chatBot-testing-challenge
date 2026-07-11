@@ -13,6 +13,7 @@
 ## Create User Stories
 - The purpose of this step is to create a set of User Stories.
 - The User Stories should be derived only from the web application system blueprint.
+- Don't create User Stories for the API Contract documentation (swagger).
 - The User Stories should comply with the INVEST acronym: Independent, Negotiable, Valuable, Estimable, Small, Testable
 - The User Stories should be traceable for a further validation report.
 - Identify any open assumptions or missing business rules that need stakeholder input.
