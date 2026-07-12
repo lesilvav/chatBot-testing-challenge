@@ -375,24 +375,99 @@ These behaviors are part of the app reality and are relevant for API, UI, and
 non-deterministic testing scenarios.
 
 ## Testing Strategy
+
+The testing framework covers four layers: unit, API, UI (end-to-end), and non-deterministic LLM quality. Each layer has a dedicated Playwright project (or Vitest for units), its own test directory, and a specific npm script.
+
+### Setup
+
+Complete the standard app setup first (see [Prerequisites](#prerequisites), [Environment setup](#environment-setup), and [Install dependencies](#install-dependencies) above), then install Playwright browsers:
+
+```bash
+npx playwright install
+```
+
+No extra dependencies are required. The model (`Xenova/all-MiniLM-L6-v2`) used for the embedding comparison in non-deterministic tests is downloaded automatically on the first run.
+
+### Running tests
+
+| Suite | Command | Requires Ollama | Requires dev server |
+| --- | --- | --- | --- |
+| Unit | `npm run test:unit` | No | No |
+| API | `npm run test:api` | Only TC-03 (skipped if unavailable) | No |
+| UI | `npm run test:ui` | Only TC-01 (skipped if unavailable) | Auto-started |
+| Non-deterministic | `npm run test:nd` | Yes (skipped if unavailable) | No |
+| All Playwright projects | `npx playwright test` | See above | Auto-started |
+
+The `test:ui` command (and `npx playwright test`) automatically starts `npm run dev` via Playwright's `webServer` configuration and waits for `http://localhost:5173` to be ready before executing tests. If the server is already started, it will skip the auto-start. The `test:api` and `test:nd` create an isolated back end instance.
+
+View the last HTML report after any Playwright run:
+
+```bash
+npm run test:api:report
+```
+
 ### Deterministic tests
 
+#### Unit tests (`npm run test:unit`)
+
+Vitest tests under `tests/unit/`. These run with no backend, no browser, and no Ollama dependency.
+
+- **`api.test.ts`**: Tests the frontend `sendChat` function in isolation against a mocked `fetch`. Covers the success path, server-provided error messages, and all default fallback messages for HTTP status codes 429, 503, 504, 502, and 500.
+- **`App.test.tsx`**: Tests the React `App` component in isolation using `@testing-library/react`. Covers initial render, user input, loading state during a pending request, successful reply rendering, and error display.
+
+#### API tests (`npm run test:api`)
+
+Playwright tests under `tests/api/`. Each test or group of tests starts its own isolated in-process Express backend on an ephemeral port — no shared server, no port conflicts. Ollama is not required for the error-scenario tests.
+
+- **`health.spec.ts`**: `GET /api/health` returns `200` with `status: "ok"` and the configured model name.
+- **`chat-success.spec.ts`**: `POST /api/chat` returns a non-empty `reply` string and a non-negative `latencyMs` when Ollama is reachable. Skipped gracefully when Ollama is unavailable.
+- **`chat-validation.spec.ts`**: `POST /api/chat` rejects messages exceeding 2000 characters with `400` and confirms the model is never invoked.
+- **`chat-errors.spec.ts`**: Verifies that the backend maps Ollama failures to the correct HTTP status codes. The real Ollama client is replaced with a controllable stub injected through `startTestServer()`, allowing each test to simulate a specific failure (rate-limit, service unavailable, timeout, or unclassified error) without needing Ollama to be running. Each test spins up its own server instance to keep stubs isolated.
+
+#### UI / E2E tests (`npm run test:ui`)
+
+Playwright tests under `tests/e2e/`. Run in a real Chromium browser against the actual Vite dev server (`http://localhost:5173`), which is started automatically.
+
+- **`chat-happy-path.spec.ts`**: Sends a message via the Send button, confirms the user bubble appears immediately, and waits for the bot reply bubble to populate. Skipped if Ollama is unreachable.
+- **`chat-validation.spec.ts`**: Fills an over-length message and confirms the UI renders the server's validation error alert. No Ollama dependency.
+- **`chat-mocked-error.spec.ts`**: Intercepts `POST /api/chat` at the browser network layer via Playwright route stubbing and confirms the UI displays the correct default rate-limit error message end-to-end through the real frontend `sendChat` fallback logic.
+- **`mobile-viewport.spec.ts`**: Resizes the viewport to a mobile size and verifies the chat layout renders correctly.
+
 ### Non-deterministic tests
-- **Relevance testing**: Compare each reply to its `referenceAnswer` in the golden set via embedding cosine similarity. LLM as a judge approach is not used since it would require additional LLM model and would add complexity.
 
-- **Consistency testing**: Reuse items in the golden set that are flagged with `usedForConsistency=true`, run each prompt 3 times, and compare all pairwise combinations. Log can be reviewed at ./test-results/nondeterministic/consistency.json
+Non-deterministic tests are under `tests/nondeterministic/` and run as the `nondeterministic` Playwright project (`npm run test:nd`). Each test is a **real assertion**: a below-threshold or failed-pattern item fails its Playwright test and shows up as red in the report. Every result (pass or fail) is also written to a structured JSON artifact under `test-results/nondeterministic/` for detailed review of the underlying prompt, reply, similarity score, and pattern data.
 
-Relevance, consistency, and hallucination checks are all real assertions: a below-threshold or failed-pattern item fails its Playwright test and shows up as failed in the report, so a reviewer scanning results can't mistake a quality regression for a pass. Every check (pass or fail) is also written to a JSON artifact under `test-results/nondeterministic/` for structured review of the underlying prompt/reply/similarity/pattern data. Whether to gate CI/merges on this project's exit code is a pipeline-level decision, not something enforced by the test code itself.
+#### How non-determinism is handled
 
-An initial golden set was created by using Claude Sonnet 5 and then manually curated agains the LLM responses to ensure they are accurate and relevant.
+The LLM produces different replies each run, so assertions use **embedding cosine similarity** (for relevance and consistency tests) and **regex pattern matching** (for hallucination tests) rather than exact string comparison. A configurable threshold determines what counts as passing. The thresholds and golden set were chosen conservatively so the suite is useful without being brittle.
 
-The number of times each prompt runs and the size of the golden set are small by purpose so that the non-deterministic testing can be completed in a reasonable time when running this testing framework.
-In a real schedule pipeline it would require to analyze the data and adjust the values accordingly.
+LLM-as-a-judge was intentionally not used: it would require a second model (adding local resource pressure and setup complexity) and would introduce a second source of non-determinism into the evaluation itself.
 
-An isolated instance of the backend Express app is started for the non-deterministic test. This ensure the
-test runs against the back end code where the test is being executed. If more exhaustive testing is required, the test would need to be configured to run separately against a testing environment in a scheduled manner.
+#### Non-deterministic test cases
 
-We use one Worker for running non deterministic tests since on CPU-only local inference, concurrent requests don't run faster in parallel. Also extra workers means extra full copies of the backend server instances (the framework uses isolated Express backend instances) and embedding models — all fighting for the same finite CPU/memory on the machine running the tests.
+- **`relevance.spec.ts`** (US-ND-01): Each of the 5 golden-set items is sent to the chat backend. The reply is embedded with `Xenova/all-MiniLM-L6-v2` and compared to the `referenceAnswer` embedding via cosine similarity. The test passes if similarity ≥ `goldenSet.similarityThreshold`.
+
+- **`consistency.spec.ts`** (US-ND-02): Items flagged `usedForConsistency=true` in the golden set are sent `goldenSet.consistency.runsPerPrompt` times. All pairwise similarities across the runs are computed; the test passes if every pair is ≥ `goldenSet.consistency.threshold`.
+
+- **`hallucination.spec.ts`** (US-ND-03/ND-04): Two categories are checked:
+  - **Verifiable facts**: Reply must match an `expectedPattern` regex (e.g. the correct capital, year, or fact).
+  - **Fabricated entities**: Reply must contain a hedge phrase (e.g. "I don't know", "I'm not sure") rather than a confident description of a nonexistent thing.
+
+#### Golden set
+
+The initial golden set (`tests/fixtures/golden-set.json`) was generated using Claude Sonnet and then manually curated against actual LLM responses to ensure the reference answers and thresholds are realistic. The hallucination fixture (`tests/fixtures/hallucination-set.json`) was authored in the same way.
+
+#### Infrastructure design for non-deterministic tests
+
+- **Isolated backend**: Each spec file starts its own in-process Express backend instance (same pattern as the API tests). The non-deterministic tests never depend on the Vite dev server.
+- **Single worker**: `npm run test:nd` enforces `--workers=1`. On CPU-only local inference, concurrent requests do not run faster and multiple workers would spawn multiple backend + embedding model instances competing for the same CPU and memory.
+- **Merge-on-write for JSON artifacts**: Playwright restarts its worker process after any failing test. Because `afterAll` can therefore run multiple times within a single spec file's execution (each time seeing only the results from its own worker generation), `writeAdvisorySummary` merges new results into the existing JSON by result `id` rather than overwriting it. This prevents data loss when multiple tests fail in the same spec file.
+
+#### Tradeoffs and assumptions
+
+- The golden set and run counts are intentionally small so the suite completes in a reasonable time on a local machine. In a real scheduled pipeline the set size, run counts, and thresholds should be tuned.
+- Whether to gate CI merges on the non-deterministic project's exit code is a pipeline-level decision not enforced by the test code.
+- Tests that require Ollama skip gracefully (with a clear reason) instead of failing when the model is unreachable, so the suite can still run in environments where Ollama is not installed.
 
 ## Challenge instructions
 
