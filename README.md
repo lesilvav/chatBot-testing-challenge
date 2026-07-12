@@ -398,6 +398,8 @@ ollama list
 
 No extra dependencies are required. The embedding model (`onnx-community/all-MiniLM-L6-v2-ONNX`, revision `aff7a1d`) used in non-deterministic tests is downloaded automatically on the first run.
 
+**Windows note**: `npm run test:nd` loads the embedding model via `onnxruntime-node`'s native binary. If you get an error like `Error: The specified module could not be found` pointing at `onnxruntime_binding.node`, install the [Microsoft Visual C++ Redistributable (x64)](https://aka.ms/vs/17/release/vc_redist.x64.exe) and retry.
+
 ### Running tests
 
 | Suite | Command | Requires Ollama | Requires dev server |
