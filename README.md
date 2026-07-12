@@ -374,6 +374,22 @@ not peak model quality.
 These behaviors are part of the app reality and are relevant for API, UI, and
 non-deterministic testing scenarios.
 
+## Testing Strategy
+### Deterministic tests
+
+### Non-deterministic tests
+- **Relevance testing**: Compare each reply to its `referenceAnswer` in the golden set via embedding cosine similarity. LLM as a judge approach is not used since it would require additional LLM model and would add complexity.
+
+- **Consistency testing**: Reuse items in the golden set that are flagged with `usedForConsistency=true`, run each prompt 3 times, and compare all pairwise combinations. Log can be reviewed at ./test-results/nondeterministic/consistency.json
+
+An initial golden set was created by using Claude Sonnet 5 and then manually curated to ensure they are accurate and relevant.
+
+The number of times each prompt runs and the size of the golden set are small by purpose so that the non-deterministic testing can be completed in a reasonable time when running this testing framework.
+In a real schedule pipeline it would require to analyze the data and adjust the values accordingly.
+
+An isolated instance of the backend Express app is started for the non-deterministic test. This ensure the
+test runs against the back end code where the test is being executed. If more exhaustive testing is required, the test would need to be configured to run separately against a testing environment in a scheduled manner.
+
 ## Challenge instructions
 
 This repository is the base app for a testing challenge.

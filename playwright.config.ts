@@ -8,6 +8,12 @@ import { defineConfig } from "@playwright/test";
  *   ephemeral port, so no `webServer`/`baseURL` dependency there.
  * - "ui" project: real-browser specs against the actual dev stack
  *   (frontend + backend via `npm run dev`), started/reused via `webServer`.
+ * - "nondeterministic" project: advisory/tracked LLM-quality checks
+ *   (relevance, consistency, hallucination) against the real Ollama model
+ *   plus an in-process embedding model. Own isolated backend instance like
+ *   "api", a much longer per-test timeout (real generation + embedding
+ *   model load), and no parallelism to avoid hammering the local Ollama
+ *   instance with concurrent requests (see tests/nondeterministic/).
  */
 export default defineConfig({
   testDir: "./tests",
@@ -34,6 +40,15 @@ export default defineConfig({
       use: {
         baseURL: "http://localhost:5173",
       },
+    },
+    {
+      name: "nondeterministic",
+      testDir: "./tests/nondeterministic",
+      // Worst case is the consistency check: 5 sequential chat() calls,
+      // each capped at 45s client-side (see tests/nondeterministic/helpers/
+      // chatClient.ts), plus embedding overhead.
+      timeout: 300_000,
+      fullyParallel: false,
     },
   ],
 });

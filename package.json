@@ -14,10 +14,12 @@
     "test:api": "playwright test --project=api",
     "test:api:report": "playwright show-report",
     "test:ui": "playwright test --project=ui",
+    "test:nd": "playwright test --project=nondeterministic --workers=1",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest"
   },
   "dependencies": {
+    "@huggingface/transformers": "4.2.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",

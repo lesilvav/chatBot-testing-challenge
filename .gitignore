@@ -8,6 +8,9 @@ test-results/
 playwright-report/
 blob-report/
 
+# @huggingface/transformers model cache (tests/nondeterministic)
+.cache/
+
 # editor / os
 .DS_Store
 *.log
