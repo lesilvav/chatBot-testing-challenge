@@ -380,13 +380,23 @@ The testing framework covers four layers: unit, API, UI (end-to-end), and non-de
 
 ### Setup
 
-Complete the standard app setup first (see [Prerequisites](#prerequisites), [Environment setup](#environment-setup), and [Install dependencies](#install-dependencies) above), then install Playwright browsers:
+Complete the standard app setup first (see [Prerequisites](#prerequisites), [Environment setup](#environment-setup), and [Install dependencies](#install-dependencies) above).
+
+Quick preflight (run from the repository root):
 
 ```bash
+npm install
+cp .env.example .env
 npx playwright install
 ```
 
-No extra dependencies are required. The model (`Xenova/all-MiniLM-L6-v2`) used for the embedding comparison in non-deterministic tests is downloaded automatically on the first run.
+If you plan to run suites that use Ollama (`test:ui` happy path, `test:api` TC-03, `test:nd`), make sure Ollama is running and the configured model is available:
+
+```bash
+ollama list
+```
+
+No extra dependencies are required. The embedding model (`onnx-community/all-MiniLM-L6-v2-ONNX`, revision `aff7a1d`) used in non-deterministic tests is downloaded automatically on the first run.
 
 ### Running tests
 
@@ -396,9 +406,9 @@ No extra dependencies are required. The model (`Xenova/all-MiniLM-L6-v2`) used f
 | API | `npm run test:api` | Only TC-03 (skipped if unavailable) | No |
 | UI | `npm run test:ui` | Only TC-01 (skipped if unavailable) | Auto-started |
 | Non-deterministic | `npm run test:nd` | Yes (skipped if unavailable) | No |
-| All Playwright projects | `npx playwright test` | See above | Auto-started |
+| All Playwright projects | `npm run test:unit && npx playwright test` | See above | Auto-started |
 
-The `test:ui` command (and `npx playwright test`) automatically starts `npm run dev` via Playwright's `webServer` configuration and waits for `http://localhost:5173` to be ready before executing tests. If the server is already started, it will skip the auto-start. The `test:api` and `test:nd` create an isolated back end instance.
+The `test:ui` command (and `npx playwright test`) automatically starts `npm run dev` via Playwright's `webServer` configuration and waits for `http://localhost:5173` to be ready before executing tests. When Playwright `reuseExistingServer` is enabled (default outside CI), an already-running dev server is reused instead of starting a new one. `test:api` and `test:nd` do not depend on this dev server; they run against isolated in-process backend instances started by the test helpers.
 
 View the last HTML report after any Playwright run:
 
@@ -417,7 +427,7 @@ Vitest tests under `tests/unit/`. These run with no backend, no browser, and no 
 
 #### API tests (`npm run test:api`)
 
-Playwright tests under `tests/api/`. Each test or group of tests starts its own isolated in-process Express backend on an ephemeral port — no shared server, no port conflicts. Ollama is not required for the error-scenario tests.
+Playwright tests under `tests/api/`. Specs run against isolated in-process Express backends on ephemeral ports (some share one backend per spec file, while `chat-errors.spec.ts` creates one backend per test to isolate stubs). Ollama is not required for the error-scenario tests.
 
 - **`health.spec.ts`**: `GET /api/health` returns `200` with `status: "ok"` and the configured model name.
 - **`chat-success.spec.ts`**: `POST /api/chat` returns a non-empty `reply` string and a non-negative `latencyMs` when Ollama is reachable. Skipped gracefully when Ollama is unavailable.
@@ -439,13 +449,13 @@ Non-deterministic tests are under `tests/nondeterministic/` and run as the `nond
 
 #### How non-determinism is handled
 
-The LLM produces different replies each run, so assertions use **embedding cosine similarity** (for relevance and consistency tests) and **regex pattern matching** (for hallucination tests) rather than exact string comparison. A configurable threshold determines what counts as passing. The thresholds and golden set were chosen conservatively so the suite is useful without being brittle.
+The LLM produces different replies each run, so assertions use **embedding cosine similarity** (for relevance and consistency tests) and **regex pattern matching** (for hallucination tests) rather than exact string comparison. A configurable threshold determines what counts as passing. The thresholds and golden set are initial values tuned for practicality on local hardware and may need recalibration for different models, environments, or CI constraints.
 
 LLM-as-a-judge was intentionally not used: it would require a second model (adding local resource pressure and setup complexity) and would introduce a second source of non-determinism into the evaluation itself.
 
 #### Non-deterministic test cases
 
-- **`relevance.spec.ts`** (US-ND-01): Each of the 5 golden-set items is sent to the chat backend. The reply is embedded with `Xenova/all-MiniLM-L6-v2` and compared to the `referenceAnswer` embedding via cosine similarity. The test passes if similarity ≥ `goldenSet.similarityThreshold`.
+- **`relevance.spec.ts`** (US-ND-01): Each of the 5 golden-set items is sent to the chat backend. The reply is embedded with `onnx-community/all-MiniLM-L6-v2-ONNX` (revision `aff7a1d`) and compared to the `referenceAnswer` embedding via cosine similarity. The test passes if similarity ≥ `goldenSet.similarityThreshold`.
 
 - **`consistency.spec.ts`** (US-ND-02): Items flagged `usedForConsistency=true` in the golden set are sent `goldenSet.consistency.runsPerPrompt` times. All pairwise similarities across the runs are computed; the test passes if every pair is ≥ `goldenSet.consistency.threshold`.
 
@@ -459,15 +469,14 @@ The initial golden set (`tests/fixtures/golden-set.json`) was generated using Cl
 
 #### Infrastructure design for non-deterministic tests
 
-- **Isolated backend**: Each spec file starts its own in-process Express backend instance (same pattern as the API tests). The non-deterministic tests never depend on the Vite dev server.
+- **Isolated backend**: Each non-deterministic spec uses a shared per-spec chat client that starts an in-process Express backend instance on an ephemeral port (using the same helper as the API tests). The non-deterministic tests never depend on the Vite dev server.
 - **Single worker**: `npm run test:nd` enforces `--workers=1`. On CPU-only local inference, concurrent requests do not run faster and multiple workers would spawn multiple backend + embedding model instances competing for the same CPU and memory.
 - **Merge-on-write for JSON artifacts**: Playwright restarts its worker process after any failing test. Because `afterAll` can therefore run multiple times within a single spec file's execution (each time seeing only the results from its own worker generation), `writeAdvisorySummary` merges new results into the existing JSON by result `id` rather than overwriting it. This prevents data loss when multiple tests fail in the same spec file.
 
 #### Tradeoffs and assumptions
 
 - The golden set and run counts are intentionally small so the suite completes in a reasonable time on a local machine. In a real scheduled pipeline the set size, run counts, and thresholds should be tuned.
-- Whether to gate CI merges on the non-deterministic project's exit code is a pipeline-level decision not enforced by the test code.
-- Tests that require Ollama skip gracefully (with a clear reason) instead of failing when the model is unreachable, so the suite can still run in environments where Ollama is not installed.
+- Ollama dependency: tests that require Ollama are skipped with a clear reason when Ollama is unavailable, so the rest of the suite can still run.
 
 ## Challenge instructions
 
