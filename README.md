@@ -382,13 +382,17 @@ non-deterministic testing scenarios.
 
 - **Consistency testing**: Reuse items in the golden set that are flagged with `usedForConsistency=true`, run each prompt 3 times, and compare all pairwise combinations. Log can be reviewed at ./test-results/nondeterministic/consistency.json
 
-An initial golden set was created by using Claude Sonnet 5 and then manually curated to ensure they are accurate and relevant.
+Relevance, consistency, and hallucination checks are all real assertions: a below-threshold or failed-pattern item fails its Playwright test and shows up as failed in the report, so a reviewer scanning results can't mistake a quality regression for a pass. Every check (pass or fail) is also written to a JSON artifact under `test-results/nondeterministic/` for structured review of the underlying prompt/reply/similarity/pattern data. Whether to gate CI/merges on this project's exit code is a pipeline-level decision, not something enforced by the test code itself.
+
+An initial golden set was created by using Claude Sonnet 5 and then manually curated agains the LLM responses to ensure they are accurate and relevant.
 
 The number of times each prompt runs and the size of the golden set are small by purpose so that the non-deterministic testing can be completed in a reasonable time when running this testing framework.
 In a real schedule pipeline it would require to analyze the data and adjust the values accordingly.
 
 An isolated instance of the backend Express app is started for the non-deterministic test. This ensure the
 test runs against the back end code where the test is being executed. If more exhaustive testing is required, the test would need to be configured to run separately against a testing environment in a scheduled manner.
+
+We use one Worker for running non deterministic tests since on CPU-only local inference, concurrent requests don't run faster in parallel. Also extra workers means extra full copies of the backend server instances (the framework uses isolated Express backend instances) and embedding models — all fighting for the same finite CPU/memory on the machine running the tests.
 
 ## Challenge instructions
 

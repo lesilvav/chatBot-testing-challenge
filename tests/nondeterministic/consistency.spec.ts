@@ -8,9 +8,14 @@ import { writeAdvisorySummary, type AdvisoryResult } from "./helpers/advisory";
 // Source: US-ND-02
 // Fixture: tests/fixtures/golden-set.json (items where usedForConsistency = true)
 //
-// Each prompt is run goldenSet.consistency.runsPerPrompt times sequentially (same worker, no concurrency,
-// to avoid hammering the local Ollama instance) and all C(goldenSet.consistency.runsPerPrompt,2) pairwise
-// similarities must be >= threshold to pass.
+// Each prompt is run goldenSet.consistency.runsPerPrompt times sequentially
+// (same worker, no concurrency, to avoid hammering the local Ollama
+// instance). All pairwise similarities across those runs are asserted for
+// real via minSimilarity below: a below-threshold or errored item fails
+// this test and shows up as failed in the Playwright report (see
+// relevance.spec.ts's header for the full rationale). Every outcome (pass
+// or fail) is also written via writeAdvisorySummary to test-results/
+// nondeterministic/consistency.json for structured review.
 
 const results: AdvisoryResult[] = [];
 let ollamaAvailable = false;
@@ -37,8 +42,10 @@ for (const item of consistencyItems) {
   test(`TC-ND-02 ${item.id} - "${item.prompt}" stays consistent across ${RUNS} repeated runs`, async () => {
     test.skip(!ollamaAvailable, "Ollama is not reachable; skipping advisory consistency check.");
 
-    // Any failure here (a slow/failed run, embedding error, etc.) is itself
-    // advisory: it's recorded as a failed item, never a crashed test.
+    // Any infra failure here (a slow/failed run, embedding error, etc.) is
+    // caught below and recorded as a failed item with the error detail;
+    // minSimilarity stays at its initial 0 so the assertion below still
+    // fails the test.
     let minSimilarity = 0;
     try {
       const replies: string[] = [];
@@ -72,8 +79,10 @@ for (const item of consistencyItems) {
       results.push({ id: item.id, passed: false, detail: { prompt: item.prompt, error: message } });
       console.log(`[ND-consistency] FAIL ${item.id} error=${message}`);
     }
-    
-    expect(minSimilarity, `min pairwise similarity too low for ${item.id}`).toBeGreaterThanOrEqual(THRESHOLD);
 
+    // Real assertion: fails the test (and shows red in the report) whenever
+    // the minimum pairwise similarity is below threshold, whether from an
+    // inconsistent reply or a caught error above (minSimilarity left at 0).
+    expect(minSimilarity, `min pairwise similarity too low for ${item.id}`).toBeGreaterThanOrEqual(THRESHOLD);
   });
 }

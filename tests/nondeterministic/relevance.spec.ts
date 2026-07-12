@@ -8,9 +8,14 @@ import { writeAdvisorySummary, type AdvisoryResult } from "./helpers/advisory";
 // Source: US-ND-01
 // Fixture: tests/fixtures/golden-set.json (all 10 items)
 //
-// Advisory/tracked only (chatBot_UserStories_NonDeterministic.md): a
-// below-threshold item is recorded for visibility via writeAdvisorySummary,
-// it must NOT fail this suite. Real Ollama, real embedding model, no mocking.
+// Each item's reply is scored via embedding cosine similarity against its
+// referenceAnswer and asserted for real: a below-threshold or errored item
+// fails this test and shows up as failed in the Playwright report. Every
+// outcome (pass or fail) is also written via writeAdvisorySummary to
+// test-results/nondeterministic/relevance.json for structured review of the
+// underlying prompt/reply/similarity data. Whether to gate CI/merges on this
+// project's exit code is a pipeline-level decision, not enforced here.
+// Real Ollama, real embedding model, no mocking.
 
 const results: AdvisoryResult[] = [];
 let ollamaAvailable = false;
@@ -34,8 +39,9 @@ for (const item of goldenSet.items) {
     test.skip(!ollamaAvailable, "Ollama is not reachable; skipping advisory relevance check.");
 
     let passed = false;
-    // Any failure here (slow/failed generation, embedding error, etc.) is
-    // itself advisory: it's recorded as a failed item, never a crashed test.
+    // Any infra failure here (slow/failed generation, embedding error, etc.)
+    // is caught below and recorded as a failed item with the error detail;
+    // `passed` stays false so the assertion below still fails the test.
     try {
       const reply = await chat(item.prompt);
       const [replyVector, referenceVector] = await Promise.all([
@@ -65,8 +71,9 @@ for (const item of goldenSet.items) {
       console.log(`[ND-relevance] FAIL ${item.id} error=${message}`);
     }
 
-    // Advisory: the threshold/error itself is never asserted here (see file
-    // header) — this only guards against the test being an accidental no-op.
+    // Real assertion: fails the test (and shows red in the report) whenever
+    // the similarity check didn't pass, whether due to a below-threshold
+    // score or a caught error above.
     expect(passed, `similarity/pattern check failed for ${item.id}`).toBe(true);
   });
 }

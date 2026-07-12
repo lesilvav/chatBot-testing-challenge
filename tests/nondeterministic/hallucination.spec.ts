@@ -7,9 +7,12 @@ import { writeAdvisorySummary, type AdvisoryResult } from "./helpers/advisory";
 // Source: US-ND-03
 // Fixture: tests/fixtures/hallucination-set.json
 //
-// Advisory/tracked only — see relevance.spec.ts header for the rationale.
-// Deterministic regex/pattern matching, no embedding similarity involved
-// (see chatBot_UserStories_NonDeterministic.md's ND-03 rationale).
+// Each item's reply is checked via deterministic regex/pattern matching (no
+// embedding similarity involved) and asserted for real: a failing or errored
+// item fails this test and shows up as failed in the Playwright report (see
+// relevance.spec.ts's header for the full rationale). Every outcome (pass or
+// fail) is also written via writeAdvisorySummary to test-results/
+// nondeterministic/hallucination.json for structured review.
 
 const results: AdvisoryResult[] = [];
 let ollamaAvailable = false;
@@ -28,12 +31,14 @@ for (const item of hallucinationSet.verifiableFact) {
   test(`TC-ND-03 ${item.id} - "${item.prompt}" reply states the correct fact`, async () => {
     test.skip(!ollamaAvailable, "Ollama is not reachable; skipping advisory hallucination check.");
 
-    // Any failure here (slow/failed generation, etc.) is itself advisory:
-    // it's recorded as a failed item, never a crashed test.
+    let passed = false;
+    // Any infra failure here (slow/failed generation, etc.) is caught below
+    // and recorded as a failed item with the error detail; `passed` stays
+    // false so the assertion below still fails the test.
     try {
       const reply = await chat(item.prompt);
       const pattern = new RegExp(item.expectedPattern, "i");
-      const passed = pattern.test(reply);
+      passed = pattern.test(reply);
 
       results.push({
         id: item.id,
@@ -49,9 +54,10 @@ for (const item of hallucinationSet.verifiableFact) {
       console.log(`[ND-hallucination] FAIL ${item.id} error=${message}`);
     }
 
-    // Advisory: the pattern match/error itself is never asserted (see file
-    // header) — this only guards against the test being an accidental no-op.
-    expect(results.some((r) => r.id === item.id)).toBe(true);
+    // Real assertion: fails the test (and shows red in the report) whenever
+    // the pattern match didn't pass, whether due to a wrong reply or a
+    // caught error above.
+    expect(passed, `expected pattern check failed for ${item.id}`).toBe(true);
   });
 }
 
@@ -61,9 +67,13 @@ for (const item of hallucinationSet.fabricatedEntity) {
   test(`TC-ND-04 ${item.id} - "${item.prompt}" reply hedges instead of confidently describing a nonexistent entity`, async () => {
     test.skip(!ollamaAvailable, "Ollama is not reachable; skipping advisory hallucination check.");
 
+    let passed = false;
+    // Any infra failure here (slow/failed generation, etc.) is caught below
+    // and recorded as a failed item with the error detail; `passed` stays
+    // false so the assertion below still fails the test.
     try {
       const reply = await chat(item.prompt);
-      const passed = hedgePattern.test(reply);
+      passed = hedgePattern.test(reply);
 
       results.push({ id: item.id, passed, detail: { prompt: item.prompt, reply } });
       console.log(`[ND-hallucination] ${passed ? "PASS" : "FAIL"} ${item.id} hedge-match=${passed}`);
@@ -73,6 +83,9 @@ for (const item of hallucinationSet.fabricatedEntity) {
       console.log(`[ND-hallucination] FAIL ${item.id} error=${message}`);
     }
 
-    expect(results.some((r) => r.id === item.id)).toBe(true);
+    // Real assertion: fails the test (and shows red in the report) whenever
+    // the reply didn't hedge, whether due to a confident hallucination or a
+    // caught error above.
+    expect(passed, `hedge-phrase check failed for ${item.id}`).toBe(true);
   });
 }
