@@ -15,6 +15,29 @@ import { defineConfig } from "@playwright/test";
  *   model load), and no parallelism to avoid hammering the local Ollama
  *   instance with concurrent requests (see tests/nondeterministic/).
  */
+
+// Playwright's `webServer` is only a top-level TestConfig option — there is
+// no per-project equivalent (see node_modules/playwright/types/test.d.ts:
+// TestProject vs TestConfig). All npm scripts invoke Playwright with an
+// explicit `--project=<name>` (see package.json), so this inspects argv to
+// decide whether "ui" is actually being run and only then starts/reuses the
+// dev server. When no --project filter is present at all (e.g. plain
+// `npx playwright test`), every project runs, including "ui", so it's kept.
+function shouldStartWebServerForUi(): boolean {
+  const argv = process.argv.slice(2);
+  const projectValues: string[] = [];
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === "--project") {
+      const next = argv[i + 1];
+      if (next && !next.startsWith("--")) projectValues.push(next);
+    } else if (arg.startsWith("--project=")) {
+      projectValues.push(arg.slice("--project=".length));
+    }
+  }
+  return projectValues.length === 0 || projectValues.includes("ui");
+}
+
 export default defineConfig({
   testDir: "./tests",
   timeout: 30_000,
@@ -23,12 +46,14 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: [["list"], ["html", { open: "never", outputFolder: "playwright-report" }]],
   outputDir: "./test-results",
-  webServer: {
-    command: "npm run dev",
-    url: "http://localhost:5173",
-    reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
-  },
+  webServer: shouldStartWebServerForUi()
+    ? {
+        command: "npm run dev",
+        url: "http://localhost:5173",
+        reuseExistingServer: !process.env.CI,
+        timeout: 60_000,
+      }
+    : undefined,
   projects: [
     {
       name: "api",
@@ -44,9 +69,6 @@ export default defineConfig({
     {
       name: "nondeterministic",
       testDir: "./tests/nondeterministic",
-      // Worst case is the consistency check: 5 sequential chat() calls,
-      // each capped at 45s client-side (see tests/nondeterministic/helpers/
-      // chatClient.ts), plus embedding overhead.
       timeout: 300_000,
       fullyParallel: false,
     },
